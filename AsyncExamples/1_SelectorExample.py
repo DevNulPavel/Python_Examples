@@ -34,7 +34,9 @@ def dataReadAvailable(sock: socket.socket, _):
     # Если данные есть, значит сокет не отвалился
     if newData:
         # Теперь модифицируем наш селектор на возможность отправки данных
-        selector.modify(sock, selectors.EVENT_WRITE, (dataWriteAvailable, newData))
+        # (Однако это избыточно - можем сразу же сделать запись данных)
+        # selector.modify(sock, selectors.EVENT_WRITE, (dataWriteAvailable, newData))
+        sock.sendall(newData)
     else:
         # Иначе разрегистрируемся и закрываем сокет
         selector.unregister(sock)
