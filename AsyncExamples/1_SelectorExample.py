@@ -9,13 +9,13 @@ selector = selectors.DefaultSelector()
 
 
 def startServer():
-    # Создаем неблокирующий сокет
+    # Создаем блокирующий сокет
     acceptSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    acceptSocket.setblocking(False)  # acceptSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    acceptSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     acceptSocket.bind(("localhost", 9999))
     acceptSocket.listen()
 
-    # Добавляем этот неблокирующий сокет в селектор на ожидание нового подключения
+    # Добавляем этот блокирующий сокет в селектор на ожидание нового подключения
     selector.register(acceptSocket, selectors.EVENT_READ, (accepted, None))
 
 
