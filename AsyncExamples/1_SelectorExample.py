@@ -9,7 +9,7 @@ selector = selectors.DefaultSelector()
 
 
 def startServer():
-    # Создаем блокирующий сокет
+    # Создаем блокирующий сокет приема соединения
     acceptSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     acceptSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     acceptSocket.bind(("localhost", 9999))
@@ -60,7 +60,7 @@ def main():
         # Получаем список ивентов
         events: selectors.SelectSelector = selector.select()
         # Перебираем события, которые произошли
-        for key, eventsMask in events:
+        for key, _ in events:
             # Переменные в key: fileobj, fd, events (ивенты, которые могли бы быть), data
             # eventsMask - битовая маска событий которые готовы на данном дескрипторе
             file = key.fileobj
