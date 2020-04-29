@@ -17,7 +17,7 @@ async def performRequestForSession(session: aiohttp.ClientSession):
         #return await response.text()
 
         chunkSize = 128
-        with open("testOut.html", "wb") as fd:
+        with open("result.html", "wb") as fd:
             while True:
                 chunk = await response.content.read(chunkSize)
                 if not chunk:
