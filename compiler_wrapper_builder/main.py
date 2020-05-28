@@ -8,6 +8,13 @@ import os.path
 import multiprocessing
 
 
+# $ cat ~/.ccache/ccache.conf
+# max_size = 50.0G
+# run_second_cpp = true
+# hard_link = true
+# sloppiness = clang_index_store,file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches,file_stat_matches_ctime
+
+
 def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, use_ccache, distcc_path, ccache_path) -> str:
     if compiler_path and compiler_args:
         compiler_text=" {compiler_path} {compiler_args}".format(compiler_path=compiler_path, compiler_args=compiler_args)
@@ -221,14 +228,21 @@ def main():
 
     if args.jobs:
         if use_distcc:
-            os.system("distcc -j")
+            # Рекомендуемое количество - удвоенное количество таргетов + 1
+            # Но надо учитывать локальный комп
+            out = subprocess.run(["distcc", "-j"], capture_output=True)
+            if (out.returncode == 0) and (len(out.stdout) > 1):
+                text = out.stdout.decode("utf-8").rstrip("\n")
+                count = int(int(text)*2 + 1)
+                print(count)
+            else:
+                print(multiprocessing.cpu_count())
         else:
             print(multiprocessing.cpu_count())
     else:
         result_file = build_c_wrapper(args.result_folder, args.compiler, args.compiler_args, use_distcc, use_ccache, distcc_path, ccache_path)
         if not result_file:
             result_file = build_bash_wrapper(args.result_folder, args.compiler, args.compiler_args, use_distcc, use_ccache, distcc_path, ccache_path)
-        
         print(result_file)   
 
 if __name__ == "__main__":
