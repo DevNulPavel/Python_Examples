@@ -46,7 +46,7 @@ def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, 
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
 
-        file_path = os.path.join(result_folder, "compiler_wrapper.sh")
+        file_path = os.path.abspath(os.path.join(result_folder, "compiler_wrapper.sh"))
         with open(file_path, "w") as file:
             file.write(text)
 
@@ -136,7 +136,7 @@ def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
 
-        wrapper_file_path = os.path.join(result_folder, "compiler_wrapper")
+        wrapper_file_path = os.path.abspath(os.path.join(result_folder, "compiler_wrapper"))
 
         main_file_path = os.path.join(result_folder, "main.c")
 
