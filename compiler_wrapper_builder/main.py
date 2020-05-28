@@ -14,6 +14,14 @@ import multiprocessing
 # hard_link = true
 # sloppiness = clang_index_store,file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches,file_stat_matches_ctime
 
+# $ cat ~/.distcc/hosts
+# Для хорошего распределения можно вообще убрать локальный компьютер, тогда серверы будут работать почти на 100%,
+#     то есть для базового сборочного компьютера можно спользовать слабый комп, но мощные сервера
+# Еще лучше - вообще не использовать локальный компьютер для сборки, так как он активно занимается препроцессингом задач
+# Для удаленных компов лучше ставить x1.5-2, для локального - по количеству ядер
+# 192.168.1.21/12
+# 192.168.1.22/12
+# localhost/12
 
 def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, use_ccache, distcc_path, ccache_path) -> str:
     if compiler_path and compiler_args:
