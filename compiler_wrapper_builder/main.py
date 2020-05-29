@@ -23,7 +23,9 @@ import multiprocessing
 # 192.168.1.22/12
 # localhost/12
 
+
 def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, use_ccache, distcc_path, ccache_path) -> str:
+    # Тест компилятора и его аргументов
     if compiler_path and compiler_args:
         compiler_text=" {compiler_path} {compiler_args}".format(compiler_path=compiler_path, compiler_args=compiler_args)
     elif compiler_path:
@@ -31,6 +33,7 @@ def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, 
     else:
         compiler_text=""
 
+    # В зависимости от параметров выдаем текст
     if use_ccache and use_distcc:
         text = ""\
         "#!/usr/bin/env bash\n"\
@@ -58,38 +61,58 @@ def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, 
         .format( compiler_text=compiler_text)
 
     if result_folder:
+        # Создаем папку если нету
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
 
+        # Получаем абсолютный путь к файлику и пишем туда текст
         file_path = os.path.abspath(os.path.join(result_folder, "compiler_wrapper.sh"))
         with open(file_path, "w") as file:
             file.write(text)
 
+        # Файлик делаем исполняемым
         os.system("chmod u+x {}".format(file_path))
 
-        return file_path        
+        # Возвращаем путь к нему
+        return file_path
     else:
         return None
+
+
+def get_C_compiler():
+    # Ищем компилятор для кода на C
+    compilator_for_c_code = None
+
+    # Clang
+    clang_out = subprocess.run(["which", "clang"], capture_output=True)
+    if (clang_out.returncode == 0) and (len(clang_out.stdout) > 2):
+        compilator_for_c_code = clang_out.stdout.decode("utf-8").rstrip("\n")
+    else:
+        # GCC
+        gcc_out = subprocess.run(["which", "gcc"], capture_output=True)
+        if (gcc_out.returncode == 0) and (len(gcc_out.stdout) > 2):
+            compilator_for_c_code = gcc_out.stdout.decode("utf-8").rstrip("\n")
+        else:
+            # XCode
+            xcode_clang = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang"
+            if os.path.exists(xcode_clang):
+                compilator_for_c_code = xcode_clang
+
+    return compilator_for_c_code
 
 
 def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc, use_ccache, distcc_path, ccache_path) -> str:
-    compilator_for_c_code = None
-
-    clang_out = subprocess.run(["which", "clang"], capture_output=True)
-    if (clang_out.returncode == 0) and (len(clang_out.stdout) > 1):
-        compilator_for_c_code = clang_out.stdout.decode("utf-8").rstrip("\n")
-    else:
-        gcc_out = subprocess.run(["which", "gcc"], capture_output=True)
-        if (gcc_out.returncode == 0) and (len(gcc_out.stdout) > 1):
-            compilator_for_c_code = gcc_out.stdout.decode("utf-8").rstrip("\n")
-
+    # Ищем компилятор для кода на C
+    compilator_for_c_code = get_C_compiler()
     if not compilator_for_c_code:
         return None
     
+    # Параметры для текста ошибки
     args = ""
     prefixes_count = 0
     env = ""
 
+    # ccache + distcc
     if use_ccache and use_distcc:
         env = "          putenv(\"CCACHE_PREFIX={}\");\n".format(distcc_path)
         args += "          args_new[index++] = \"{}\";\n".format(ccache_path)
@@ -103,6 +126,7 @@ def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc
     else:
         pass
 
+    # Путь к компилятору и его аргументам
     if compiler_path:
         args += "          args_new[index++] = \"{}\";\n".format(compiler_path)
         prefixes_count += 1
@@ -113,34 +137,35 @@ def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc
                 prefixes_count += 1
                 args += "          args_new[index++] = \"{}\";\n".format(param)
 
+    # Тест программы
     text = ""\
-    "#include <stdio.h>                                             \n"\
-    "#include <stdlib.h>                                            \n"\
-    "#include <unistd.h>                                            \n"\
-    "#include <errno.h>                                             \n"\
-    "int main(int argc, char* argv[]){{                             \n"\
-    "     if(fork() == 0){{                                         \n"\
+    "#include <stdio.h>                                                                  \n"\
+    "#include <stdlib.h>                                                                 \n"\
+    "#include <unistd.h>                                                                 \n"\
+    "#include <errno.h>                                                                  \n"\
+    "int main(int argc, char* argv[]){{                                                  \n"\
+    "     if(fork() == 0){{                                                              \n"\
     "{env}"\
-    "          const int prefixes = {prefixes_count};               \n"\
-    "          char** args_new = (char**)malloc(sizeof(char*) * (argc + prefixes + 1)); \n"\
-    "          int index = 0;                                       \n"\
+    "          const int prefixes = {prefixes_count};                                    \n"\
+    "          char** args_new = (char**)malloc(sizeof(char*) * (argc + prefixes + 1));  \n"\
+    "          int index = 0;                                                            \n"\
     "{args}"\
-    "          for(int j = 1; j < argc; j++){{                      \n"\
-    "              args_new[index++] = argv[j];                     \n"\
-    "          }}                                                   \n"\
-    "          args_new[index] = NULL;                              \n"\
-    "          if (execvp(args_new[0], args_new) != -1){{           \n"\
-    "               exit(0);                                        \n"\
-    "               return 0;                                       \n"\
-    "          }}else{{                                             \n"\
-    "               exit(errno);                                    \n"\
-    "               return errno;                                   \n"\
-    "          }}                                                   \n"\
-    "    }}                                                         \n"\
-    "    int status;                                                \n"\
-    "    wait(&status);                                             \n"\
-    "    return WEXITSTATUS(status);                                \n"\
-    "}}                                                             \n"\
+    "          for(int j = 1; j < argc; j++){{                                           \n"\
+    "              args_new[index++] = argv[j];                                          \n"\
+    "          }}                                                                        \n"\
+    "          args_new[index] = NULL;                                                   \n"\
+    "          if (execvp(args_new[0], args_new) != -1){{                                \n"\
+    "               exit(0);                                                             \n"\
+    "               return 0;                                                            \n"\
+    "          }}else{{                                                                  \n"\
+    "               exit(errno);                                                         \n"\
+    "               return errno;                                                        \n"\
+    "          }}                                                                        \n"\
+    "    }}                                                                              \n"\
+    "    int status;                                                                     \n"\
+    "    wait(&status);                                                                  \n"\
+    "    return WEXITSTATUS(status);                                                     \n"\
+    "}}                                                                                  \n"\
     .format(env=env,
             prefixes_count=prefixes_count, 
             args=args)
@@ -148,38 +173,44 @@ def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc
     # print(text)
 
     if result_folder:
+        # Создаем папку если надо
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
-
+        
+        # Путь к файлику враппера
         wrapper_file_path = os.path.abspath(os.path.join(result_folder, "compiler_wrapper"))
 
+        # Путь к компилируемому файлику
         main_file_path = os.path.join(result_folder, "main.c")
 
+        # Пишем файлик
         with open(main_file_path, "w") as f:
             f.write(text)
 
+        # Компилируем, выходим из функции если ошибка
         compiler_out = subprocess.run([compilator_for_c_code, "-O2", main_file_path, "-o", wrapper_file_path], capture_output=True)
         if compiler_out.returncode != 0:
             print(compiler_out.stderr)
             return None
 
+        # Исполняемый файлик делаем исполняемым для пользователя на всякий случай
         os.system("chmod u+x {}".format(wrapper_file_path))
 
         return wrapper_file_path
     else:
         return None
     
-    
 
 def get_executable_path(executable_name: str) -> str:
-    #command = os.system(executable_name);
+    # Получаем путь с помощью терминальной команды which
     out = subprocess.run(["which", executable_name], capture_output=True)
     if (out.returncode == 0) and (len(out.stdout) > 1):
         return out.stdout.decode("utf-8").rstrip("\n")
     else:
         return None
 
-def main():
+
+def get_arguments():
     parser = argparse.ArgumentParser(description='DistCC and CCache wrapper builder')
 
     parser.add_argument("--compiler", 
@@ -218,40 +249,66 @@ def main():
                         default=None,
                         help="Result folder")
 
+    args = parser.parse_args()
+    
+    return args
+
+
+def print_compile_jobs_count(use_distcc: bool):
+    if use_distcc:
+        # Рекомендуемое количество - удвоенное количество таргетов + 1
+        # Но надо учитывать локальный комп
+        out = subprocess.run(["distcc", "-j"], capture_output=True)
+        if (out.returncode == 0) and (len(out.stdout) > 1):
+            text = out.stdout.decode("utf-8").rstrip("\n")
+            count = int(int(text)*2 + 1)
+            print(count)
+        else:
+            # Просто количество ядер
+            print(multiprocessing.cpu_count())
+    else:
+        # Просто количество ядер
+        print(multiprocessing.cpu_count())
+
+
+def main():
+    # Аргументы скрипта
+    args = get_arguments()
+    #print(args)
+
+    # Получим путь к нашим исполняемым файликам
     distcc_path = get_executable_path("distcc")
     ccache_path = get_executable_path("ccache")
 
-    args = parser.parse_args()
-    #print(args)
-
+    # Если есть путь - используем
     if distcc_path:
         use_distcc = args.use_distcc
     else:
         use_distcc = False
 
+    # Если есть путь - используем
     if ccache_path:
         use_ccache = args.use_ccache
     else:
         use_ccache = False
 
+    # Если нам надо вывести просто количество потоков сборки
     if args.jobs:
-        if use_distcc:
-            # Рекомендуемое количество - удвоенное количество таргетов + 1
-            # Но надо учитывать локальный комп
-            out = subprocess.run(["distcc", "-j"], capture_output=True)
-            if (out.returncode == 0) and (len(out.stdout) > 1):
-                text = out.stdout.decode("utf-8").rstrip("\n")
-                count = int(int(text)*2 + 1)
-                print(count)
-            else:
-                print(multiprocessing.cpu_count())
-        else:
-            print(multiprocessing.cpu_count())
+        # тогда выводим
+        print_compile_jobs_count(use_distcc)
     else:
+        # Пробуем создать враппер на C
         result_file = build_c_wrapper(args.result_folder, args.compiler, args.compiler_args, use_distcc, use_ccache, distcc_path, ccache_path)
         if not result_file:
+            # Если не вышло, создаем на bash
             result_file = build_bash_wrapper(args.result_folder, args.compiler, args.compiler_args, use_distcc, use_ccache, distcc_path, ccache_path)
-        print(result_file)   
+        
+        # Выводим имя файлика
+        if result_file:
+            print(result_file)
+        else:
+            print("ERROR-no_wrapper_file")
+
 
 if __name__ == "__main__":
     main()
