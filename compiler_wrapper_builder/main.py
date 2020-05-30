@@ -23,6 +23,41 @@ import multiprocessing
 # 192.168.1.22/12
 # localhost/12
 
+c_code_text = """
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+int main(int argc, char* argv[]){{
+    if(fork() == 0){{
+{env}
+        const int prefixes = {prefixes_count};
+        int array_size = argc + prefixes + 1;
+        char* stack_array[64];
+        char** args_new = stack_array;
+        if(array_size > 64){{
+            args_new = (char**)malloc(sizeof(char*) * array_size);
+        }}
+
+        int index = 0;  
+{args}
+        for(int j = 1; j < argc; j++){{
+            args_new[index++] = argv[j];
+        }}
+        args_new[index] = NULL;
+        if (execvp(args_new[0], args_new) != -1){{
+            exit(0);
+            return 0;
+        }}else{{
+            exit(errno);
+            return errno;
+        }}
+    }}
+    int status;
+    wait(&status);
+    return WEXITSTATUS(status);
+}}
+"""
 
 def build_bash_wrapper(result_folder, compiler_path, compiler_args, use_distcc, use_ccache, distcc_path, ccache_path) -> str:
     # Тест компилятора и его аргументов
@@ -138,37 +173,9 @@ def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc
                 args += "          args_new[index++] = \"{}\";\n".format(param)
 
     # Тест программы
-    text = ""\
-    "#include <stdio.h>                                                                  \n"\
-    "#include <stdlib.h>                                                                 \n"\
-    "#include <unistd.h>                                                                 \n"\
-    "#include <errno.h>                                                                  \n"\
-    "int main(int argc, char* argv[]){{                                                  \n"\
-    "     if(fork() == 0){{                                                              \n"\
-    "{env}"\
-    "          const int prefixes = {prefixes_count};                                    \n"\
-    "          char** args_new = (char**)malloc(sizeof(char*) * (argc + prefixes + 1));  \n"\
-    "          int index = 0;                                                            \n"\
-    "{args}"\
-    "          for(int j = 1; j < argc; j++){{                                           \n"\
-    "              args_new[index++] = argv[j];                                          \n"\
-    "          }}                                                                        \n"\
-    "          args_new[index] = NULL;                                                   \n"\
-    "          if (execvp(args_new[0], args_new) != -1){{                                \n"\
-    "               exit(0);                                                             \n"\
-    "               return 0;                                                            \n"\
-    "          }}else{{                                                                  \n"\
-    "               exit(errno);                                                         \n"\
-    "               return errno;                                                        \n"\
-    "          }}                                                                        \n"\
-    "    }}                                                                              \n"\
-    "    int status;                                                                     \n"\
-    "    wait(&status);                                                                  \n"\
-    "    return WEXITSTATUS(status);                                                     \n"\
-    "}}                                                                                  \n"\
-    .format(env=env,
-            prefixes_count=prefixes_count, 
-            args=args)
+    text = c_code_text.format(env=env,
+                              prefixes_count=prefixes_count, 
+                              args=args)
         
     # print(text)
 
