@@ -13,10 +13,6 @@
 		<string>bash</string>
 		<string>distcc_daemon.sh</string>
 	</array>
-	<key>__ProgramArguments</key>
-	<array>
-		<string>/usr/bin/distcc</string>
-	</array>
 	<key>_StandardErrorPath</key>
 	<string>/var/log/distcc_err</string>
 	<key>_StandardOutPath</key>
