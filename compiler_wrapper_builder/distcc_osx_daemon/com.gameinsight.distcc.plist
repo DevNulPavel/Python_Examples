@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.gameinsight.distcc</string>
+	<key>_WorkingDirectory</key>
+	<string>/usr/local/opt/distcc</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/devnul/Projects/Python_Examples/compiler_wrapper_builder/distcc_osx_daemon</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>bash</string>
+		<string>distcc_daemon.sh</string>
+	</array>
+	<key>__ProgramArguments</key>
+	<array>
+		<string>/usr/bin/distcc</string>
+	</array>
+	<key>_StandardErrorPath</key>
+	<string>/var/log/distcc_err</string>
+	<key>_StandardOutPath</key>
+	<string>/var/log/distcc_out</string>
+	<key>StandardOutPath</key>
+	<string>daemon_out.txt</string>
+	<key>StandardErrorPath</key>
+	<string>daemon_err.txt</string>
+	<key>KeepAlive</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>UserName</key>
+	<string>devnul</string>
+	<key>GroupName</key>
+	<string>staff</string>
+</dict>
+</plist>
