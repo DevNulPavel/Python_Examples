@@ -149,28 +149,28 @@ def build_c_wrapper(result_folder, compiler_path, compiler_args: str, use_distcc
 
     # ccache + distcc
     if use_ccache and use_distcc:
-        env = "          putenv(\"CCACHE_PREFIX={}\");\n".format(distcc_path)
-        args += "          args_new[index++] = \"{}\";\n".format(ccache_path)
+        env = "        putenv(\"CCACHE_PREFIX={}\");\n".format(distcc_path)
+        args += "        args_new[index++] = \"{}\";\n".format(ccache_path)
         prefixes_count += 1
     elif use_ccache:
-        args += "          args_new[index++] = \"{}\";\n".format(ccache_path)
+        args += "        args_new[index++] = \"{}\";\n".format(ccache_path)
         prefixes_count += 1
     elif use_distcc:
-        args += "          args_new[index++] = \"{}\";\n".format(distcc_path)
+        args += "        args_new[index++] = \"{}\";\n".format(distcc_path)
         prefixes_count += 1
     else:
         pass
 
     # Путь к компилятору и его аргументам
     if compiler_path:
-        args += "          args_new[index++] = \"{}\";\n".format(compiler_path)
+        args += "        args_new[index++] = \"{}\";\n".format(compiler_path)
         prefixes_count += 1
 
         if compiler_args:
             compiler_args_array = compiler_args.split(" ")
             for param in compiler_args_array:
                 prefixes_count += 1
-                args += "          args_new[index++] = \"{}\";\n".format(param)
+                args += "        args_new[index++] = \"{}\";\n".format(param)
 
     # Тест программы
     text = c_code_text.format(env=env,
