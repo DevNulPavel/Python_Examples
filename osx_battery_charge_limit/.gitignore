@@ -1,0 +1,5 @@
+.pyc
+.idea
+
+smc-command/*.o
+smc-command/smc
