@@ -7,6 +7,10 @@ import os
 import os.path
 import re
 import sys
+import platform
+
+# "  BCLM  [ui8 ]  60 (bytes 3c)"
+OUTPUT_RE = re.compile(r"  BCLM  \[([a-z0-9]*)\s*\]  ([0-9a-f]+) \(bytes (.+)\)")
 
 
 def get_smc_binary_path(script_directory) -> str:
@@ -16,12 +20,18 @@ def get_smc_binary_path(script_directory) -> str:
     exists = os.path.exists(binary_path)
     
     if not exists:
+        current_dir = os.getcwd()
         os.chdir(smc_directory)
         out = subprocess.run(["make"], capture_output=True)
-        os.chdir("..")
+        os.chdir(current_dir)
         if out.returncode != 0:
             print("SMC build failed!", file=sys.stderr)
             print(out.stderr)
+            exit(1)
+        
+        exists = os.path.exists(binary_path)
+        if not exists:
+            print("SMC binary does not exist at {}!".format(binary_path), file=sys.stderr)
             exit(1)
     
     return binary_path
@@ -30,20 +40,20 @@ def get_smc_binary_path(script_directory) -> str:
 def get_arguments():
     parser = argparse.ArgumentParser(description="Macbook battery charge limit using SMC")
 
-    parser.add_argument("-c, --current", 
+    parser.add_argument("-c", 
                         dest="current",
                         default=False,
                         action="store_true",
                         help="Current limit value")
 
-    parser.add_argument("-r, --reset", 
+    parser.add_argument("-r", 
                         dest="reset",
                         default=False,
                         action="store_true",
                         help="Reset on default value (100)")
 
-    parser.add_argument("-s, --set", 
-                        dest="change", 
+    parser.add_argument("-s", 
+                        dest="set", 
                         type=int,
                         default=None,
                         help="Target charge limit in percents, from 40 to 100")
@@ -55,7 +65,7 @@ def get_arguments():
 
 def get_and_check_current_battery_charge_limit(smc_binary_path) -> int:
     #./smc -r -k BCLM
-    get_value_out = subprocess.run([smc_binary_path, "-r", "-k", "BCLM"], capture_output=True)
+    get_value_out = subprocess.run([smc_binary_path, "-k", "BCLM", "-r"], capture_output=True)
     # print(get_value_out)
     if (get_value_out.returncode != 0) or (len(get_value_out.stdout) == 0):
         print("Battery limit value read failed:", file=sys.stderr)
@@ -65,8 +75,7 @@ def get_and_check_current_battery_charge_limit(smc_binary_path) -> int:
     out_string = get_value_out.stdout.decode("utf-8").rstrip("\n")
     # print(out_string)
 
-    # "  BCLM  [ui8 ]  60 (bytes 3c)"
-    parse_result = re.match(r"  BCLM  \[([a-z0-9]*)\s*\]  ([0-9a-f]+) \(bytes (.+)\)", out_string)
+    parse_result = OUTPUT_RE.match(out_string)
     if parse_result is None:
         error_text = "SMC out parse failed:\nvalid \"{}\"\ncurrent \"{}\"".format(
             "  BCLM  [ui8 ]  60 (bytes 3c)", 
@@ -93,22 +102,84 @@ def get_and_check_current_battery_charge_limit(smc_binary_path) -> int:
     return current_value
 
 
-def main():
-    # Директория текущего скрипта
-    script_directory = os.path.dirname(os.path.realpath(__file__))
-    # print(script_directory)
+def is_root_user() -> bool:
+    return (os.geteuid() == 0)
 
-    # Путь к исполняемому файлику
+
+def set_current_battery_charge_limit(smc_binary_path, value) -> int:
+    is_root = is_root_user()
+    if not is_root:
+        print("Set limit must be run as root", file=sys.stderr)
+        exit(1)
+
+    if (value > 100) or (value < 20) or (not isinstance(value, int)):
+        print("New limit integer value must be: 20 <= val <= 100", file=sys.stderr)
+        exit(1)
+
+    hex_value = hex(value).replace("0x", "")
+    if hex_value is None:
+        print("Value convert to hex failed", file=sys.stderr)
+        exit(1)
+    if len(hex_value) != 2:
+        print("Value convert to hex failed, too short hex: {}".format(hex_value), file=sys.stderr)
+        exit(1)
+
+    # sudo ./smc -k BCLM -w 3c
+    set_value_out = subprocess.run([smc_binary_path, "-k", "BCLM", "-w", hex_value], capture_output=True)
+    # print(set_value_out)
+    if (set_value_out.returncode != 0):
+        print("Battery limit value set failed:", file=sys.stderr)
+        print(set_value_out.stderr, file=sys.stderr)
+        exit(1)
+
+    return True
+
+
+def change_battery_limit_value(smc_binary_path, value):
+    current_value = get_and_check_current_battery_charge_limit(smc_binary_path)
+    if current_value is None:
+        print("Battery limit previous value read failed", file=sys.stderr)
+        exit(1)
+
+    print("Previous battery charge limit is {}%".format(current_value))
+
+    success = set_current_battery_charge_limit(smc_binary_path, value)
+    if success:
+        new_value = get_and_check_current_battery_charge_limit(smc_binary_path)
+        print("New battery charge limit is {}%".format(new_value))
+    else:
+        print("Battery limit value set failed", file=sys.stderr)
+        exit(1)
+
+
+def print_current_limit(smc_binary_path):
+    current_value = get_and_check_current_battery_charge_limit(smc_binary_path)
+    print("Current battery charge limit is {}%".format(current_value))    
+
+
+def main():
+    current_system = platform.system()
+    if current_system != "Darwin":
+        print("Script must be run using OSX platform only", file=sys.stderr)
+        exit(1)
+
+    # Script directory
+    script_directory = os.path.dirname(os.path.realpath(__file__))
+
+    # SMC binary path
     smc_binary_path = get_smc_binary_path(script_directory)
-    # print(smc_binary_path)
     
-    # Аргументы скрипта
+    # Arguments
     args = get_arguments()
-    # print(args)
 
     if args.current:
-        current_value = get_and_check_current_battery_charge_limit(smc_binary_path)
-        print("Current battery charge limit is {}%".format(current_value))
+        print_current_limit(smc_binary_path)
+    elif args.set:
+        change_battery_limit_value(smc_binary_path, args.set)
+    elif args.reset:
+        change_battery_limit_value(smc_binary_path, 60)
+    else:
+        print_current_limit(smc_binary_path)
 
 
 if __name__ == "__main__":
